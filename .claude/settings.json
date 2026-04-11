@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm:*)",
+      "Bash(npx:*)",
+      "Bash(git:*)",
+      "Bash(npm test)",
+      "Bash(npm run:*)",
+      "WebSearch",
+      "Bash(gh auth:*)",
+      "Bash(brew install:*)",
+      "Bash(brew --version)",
+      "Bash(gh --version)"
+    ]
+  }
+}
