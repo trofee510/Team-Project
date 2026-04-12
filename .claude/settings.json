@@ -1,16 +1,16 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npm:*)",
-      "Bash(npx:*)",
-      "Bash(git:*)",
-      "Bash(npm test)",
-      "Bash(npm run:*)",
+      "Bash(*)",
+      "Edit(*)",
+      "Write(*)",
+      "Read(*)",
+      "Glob(*)",
+      "Grep(*)",
       "WebSearch",
-      "Bash(gh auth:*)",
-      "Bash(brew install:*)",
-      "Bash(brew --version)",
-      "Bash(gh --version)"
+      "WebFetch(*)",
+      "mcp__reddit__*",
+      "NotebookEdit(*)"
     ]
   }
 }
