@@ -6,7 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'app.dart';
 
 /// Set to true to run without Supabase (UI preview mode)
-const bool kDemoMode = false;
+const bool kDemoMode = true;
 
 /// App name constant
 const String kAppName = 'GRWM';

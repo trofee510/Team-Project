@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../wardrobe/wardrobe_screen.dart';
-import '../outfits/outfit_history_screen.dart';
+import '../hub/mode_selection_screen.dart';
 import '../calendar/calendar_screen.dart';
 import '../profile/profile_screen.dart';
 
@@ -13,7 +13,7 @@ class HomeScreen extends ConsumerWidget {
 
   static const _screens = [
     WardrobeScreen(),
-    OutfitHistoryScreen(),
+    ModeSelectionScreen(),
     CalendarScreen(),
     ProfileScreen(),
   ];
