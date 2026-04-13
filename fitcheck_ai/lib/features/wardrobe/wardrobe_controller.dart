@@ -17,6 +17,7 @@ class WardrobeController extends AsyncNotifier<List<WardrobeItem>> {
     if (kDemoMode) return _mockItems;
 
     final supabase = ref.read(supabaseServiceProvider);
+    if (supabase.currentUser == null) return [];
     return supabase.getWardrobeItems();
   }
 

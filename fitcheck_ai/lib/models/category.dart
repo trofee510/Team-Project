@@ -6,6 +6,12 @@ enum ClothingCategory {
   dresses('Dresses', Icons.dry_cleaning),
   shoes('Shoes', Icons.ice_skating),
   outerwear('Outerwear', Icons.umbrella),
+  activewear('Activewear', Icons.fitness_center),
+  swimwear('Swimwear', Icons.pool),
+  sleepwear('Sleepwear', Icons.bedtime),
+  suits('Suits & Formal', Icons.business_center),
+  jewelry('Jewelry', Icons.diamond),
+  hats('Hats & Headwear', Icons.face),
   accessories('Accessories', Icons.watch),
   bags('Bags', Icons.shopping_bag);
 

@@ -51,6 +51,13 @@ class SupabaseService {
         .getPublicUrl(path);
   }
 
+  Future<String> getSignedUrl(String path) async {
+    final url = await _client.storage
+        .from(AppConstants.wardrobeBucket)
+        .createSignedUrl(path, 3600); // 1 hour expiry
+    return url;
+  }
+
   Future<void> deleteImage(String path) async {
     await _client.storage.from(AppConstants.wardrobeBucket).remove([path]);
   }

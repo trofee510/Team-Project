@@ -24,6 +24,7 @@ final outfitHistoryProvider = FutureProvider<List<Outfit>>((ref) {
     ];
   }
   final supabase = ref.read(supabaseServiceProvider);
+  if (supabase.currentUser == null) return [];
   return supabase.getOutfits();
 });
 

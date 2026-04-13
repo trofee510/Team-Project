@@ -1,19 +1,53 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../core/constants.dart';
 import '../../core/theme.dart';
 import '../../core/extensions.dart';
+import '../../main.dart';
 import '../../models/wardrobe_item.dart';
 import 'wardrobe_controller.dart';
 
-class ItemDetailScreen extends ConsumerWidget {
+class ItemDetailScreen extends ConsumerStatefulWidget {
   final WardrobeItem item;
 
   const ItemDetailScreen({super.key, required this.item});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ItemDetailScreen> createState() => _ItemDetailScreenState();
+}
+
+class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
+  String? _signedUrl;
+  bool _loadingUrl = true;
+
+  WardrobeItem get item => widget.item;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadImageUrl();
+  }
+
+  Future<void> _loadImageUrl() async {
+    if (kDemoMode || item.imagePath == 'demo') {
+      setState(() => _loadingUrl = false);
+      return;
+    }
+    try {
+      final url = await Supabase.instance.client.storage
+          .from(AppConstants.wardrobeBucket)
+          .createSignedUrl(item.imagePath, 3600);
+      if (mounted) setState(() { _signedUrl = url; _loadingUrl = false; });
+    } catch (_) {
+      if (mounted) setState(() => _loadingUrl = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: Text(item.name ?? item.category.label),
@@ -52,30 +86,36 @@ class ItemDetailScreen extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Image
+            // Image (tap for fullscreen)
             Center(
-              child: Container(
-                width: 220,
-                height: 220,
-                decoration: BoxDecoration(
-                  color: _colorFromName(item.color),
-                  borderRadius: BorderRadius.circular(24),
-                ),
-                child: Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
+              child: GestureDetector(
+                onTap: _signedUrl != null ? () => _showFullImage(context) : null,
+                child: Container(
+                  width: 300,
+                  height: 350,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(24),
+                  ),
+                  child: Stack(
                     children: [
-                      Icon(item.category.icon, size: 56,
-                          color: Colors.white.withValues(alpha: 0.9)),
-                      const SizedBox(height: 8),
-                      Text(
-                        item.color ?? '',
-                        style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.8),
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                        ),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(24),
+                        child: _buildImage(),
                       ),
+                      if (_signedUrl != null)
+                        Positioned(
+                          bottom: 10,
+                          right: 10,
+                          child: Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.5),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.fullscreen, color: Colors.white, size: 18),
+                          ),
+                        ),
                     ],
                   ),
                 ),
@@ -139,17 +179,85 @@ class ItemDetailScreen extends ConsumerWidget {
     );
   }
 
-  Color _colorFromName(String? colorName) {
-    return switch (colorName?.toLowerCase()) {
-      'white' => Colors.blueGrey.shade200,
-      'black' => Colors.grey.shade800,
-      'dark blue' || 'navy' => Colors.indigo.shade400,
-      'light blue' => Colors.lightBlue.shade300,
-      'khaki' || 'beige' => Colors.amber.shade300,
-      'brown' => Colors.brown.shade400,
-      'silver' || 'grey' || 'gray' => Colors.blueGrey.shade300,
-      _ => AppTheme.primary.withValues(alpha: 0.6),
-    };
+  void _showFullImage(BuildContext context) {
+    Navigator.of(context).push(
+      PageRouteBuilder(
+        opaque: false,
+        barrierColor: Colors.black87,
+        barrierDismissible: true,
+        pageBuilder: (_, __, ___) => GestureDetector(
+          onTap: () => Navigator.pop(context),
+          child: Scaffold(
+            backgroundColor: Colors.black87,
+            appBar: AppBar(
+              backgroundColor: Colors.transparent,
+              elevation: 0,
+              leading: IconButton(
+                icon: const Icon(Icons.close, color: Colors.white),
+                onPressed: () => Navigator.pop(context),
+              ),
+              title: Text(
+                item.name ?? item.category.label,
+                style: const TextStyle(color: Colors.white),
+              ),
+            ),
+            body: Center(
+              child: InteractiveViewer(
+                minScale: 0.5,
+                maxScale: 4.0,
+                child: Image.network(
+                  _signedUrl!,
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, __, ___) => const Icon(
+                    Icons.broken_image, color: Colors.white54, size: 64,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildImage() {
+    if (kDemoMode || item.imagePath == 'demo') return _placeholder();
+
+    if (_loadingUrl) {
+      return const Center(
+        child: SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2)),
+      );
+    }
+
+    if (_signedUrl == null) return _placeholder();
+
+    return Image.network(
+      _signedUrl!,
+      fit: BoxFit.contain,
+      width: double.infinity,
+      height: double.infinity,
+      errorBuilder: (_, __, ___) => _placeholder(),
+    );
+  }
+
+  Widget _placeholder() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(item.category.icon, size: 56, color: AppTheme.textSecondary.withValues(alpha: 0.5)),
+          const SizedBox(height: 8),
+          Text(
+            item.category.label,
+            style: TextStyle(
+              color: AppTheme.textSecondary,
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
