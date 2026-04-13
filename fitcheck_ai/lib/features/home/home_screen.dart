@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../wardrobe/wardrobe_screen.dart';
 import '../hub/mode_selection_screen.dart';
-import '../calendar/calendar_screen.dart';
+import '../analytics/style_analytics_screen.dart';
 import '../profile/profile_screen.dart';
 
 final homeTabProvider = StateProvider<int>((ref) => 0);
@@ -14,7 +14,7 @@ class HomeScreen extends ConsumerWidget {
   static const _screens = [
     WardrobeScreen(),
     ModeSelectionScreen(),
-    CalendarScreen(),
+    StyleAnalyticsScreen(),
     ProfileScreen(),
   ];
 
@@ -46,8 +46,8 @@ class HomeScreen extends ConsumerWidget {
               label: 'Outfits',
             ),
             BottomNavigationBarItem(
-              icon: Icon(Icons.calendar_month),
-              label: 'Calendar',
+              icon: Icon(Icons.insights),
+              label: 'Analytics',
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.person),

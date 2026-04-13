@@ -17,7 +17,9 @@ class WardrobeController extends AsyncNotifier<List<WardrobeItem>> {
     if (kDemoMode) return _mockItems;
 
     final supabase = ref.read(supabaseServiceProvider);
-    return supabase.getWardrobeItems();
+    final dbItems = await supabase.getWardrobeItems();
+    // Merge: database items first, then fill in starter items
+    return [...dbItems, ..._mockItems];
   }
 
   Future<void> refresh() async {
@@ -27,7 +29,10 @@ class WardrobeController extends AsyncNotifier<List<WardrobeItem>> {
       return;
     }
     final supabase = ref.read(supabaseServiceProvider);
-    state = await AsyncValue.guard(() => supabase.getWardrobeItems());
+    state = await AsyncValue.guard(() async {
+      final dbItems = await supabase.getWardrobeItems();
+      return [...dbItems, ..._mockItems];
+    });
   }
 
   Future<void> deleteItem(WardrobeItem item) async {
@@ -51,6 +56,7 @@ class WardrobeController extends AsyncNotifier<List<WardrobeItem>> {
 
 // Mock data for UI preview
 final _mockItems = [
+  // Tops (5)
   WardrobeItem(
     id: '1', userId: 'demo', category: ClothingCategory.tops,
     subcategory: 'T-Shirt', color: 'White',
@@ -64,6 +70,26 @@ final _mockItems = [
     createdAt: DateTime.now(),
   ),
   WardrobeItem(
+    id: '9', userId: 'demo', category: ClothingCategory.tops,
+    subcategory: 'Blouse', color: 'Pink',
+    imagePath: 'demo', name: 'Satin Blouse',
+    createdAt: DateTime.now(),
+  ),
+  WardrobeItem(
+    id: '10', userId: 'demo', category: ClothingCategory.tops,
+    subcategory: 'Sweater', color: 'Black',
+    imagePath: 'demo', name: 'Black Crewneck',
+    createdAt: DateTime.now(),
+  ),
+  WardrobeItem(
+    id: '11', userId: 'demo', category: ClothingCategory.tops,
+    subcategory: 'Tank Top', color: 'Navy',
+    imagePath: 'demo', name: 'Navy Tank',
+    createdAt: DateTime.now(),
+  ),
+
+  // Bottoms (4)
+  WardrobeItem(
     id: '3', userId: 'demo', category: ClothingCategory.bottoms,
     subcategory: 'Jeans', color: 'Dark Blue',
     imagePath: 'demo', name: 'Slim Jeans',
@@ -76,6 +102,20 @@ final _mockItems = [
     createdAt: DateTime.now(),
   ),
   WardrobeItem(
+    id: '12', userId: 'demo', category: ClothingCategory.bottoms,
+    subcategory: 'Skirt', color: 'Black',
+    imagePath: 'demo', name: 'Mini Skirt',
+    createdAt: DateTime.now(),
+  ),
+  WardrobeItem(
+    id: '13', userId: 'demo', category: ClothingCategory.bottoms,
+    subcategory: 'Trousers', color: 'Beige',
+    imagePath: 'demo', name: 'Wide Leg Trousers',
+    createdAt: DateTime.now(),
+  ),
+
+  // Shoes (4)
+  WardrobeItem(
     id: '5', userId: 'demo', category: ClothingCategory.shoes,
     subcategory: 'Sneakers', color: 'White',
     imagePath: 'demo', name: 'White Sneakers',
@@ -87,6 +127,20 @@ final _mockItems = [
     imagePath: 'demo', name: 'Chelsea Boots',
     createdAt: DateTime.now(),
   ),
+  WardrobeItem(
+    id: '14', userId: 'demo', category: ClothingCategory.shoes,
+    subcategory: 'Heels', color: 'Black',
+    imagePath: 'demo', name: 'Black Heels',
+    createdAt: DateTime.now(),
+  ),
+  WardrobeItem(
+    id: '15', userId: 'demo', category: ClothingCategory.shoes,
+    subcategory: 'Sandals', color: 'Tan',
+    imagePath: 'demo', name: 'Strappy Sandals',
+    createdAt: DateTime.now(),
+  ),
+
+  // Outerwear & accessories
   WardrobeItem(
     id: '7', userId: 'demo', category: ClothingCategory.outerwear,
     subcategory: 'Jacket', color: 'Black',

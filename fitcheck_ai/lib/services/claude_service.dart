@@ -10,6 +10,7 @@ final claudeServiceProvider = Provider<ClaudeService>((ref) {
   return ClaudeService();
 });
 
+/// AI service — uses OpenAI GPT-4o for all AI features
 class ClaudeService {
   Future<OutfitSuggestion> generateOutfit({
     required List<WardrobeItem> wardrobeItems,
@@ -46,14 +47,13 @@ Respond with ONLY valid JSON in this exact format:
 }''';
 
     final response = await http.post(
-      Uri.parse(AppConstants.claudeApiUrl),
+      Uri.parse(AppConstants.openaiApiUrl),
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': AppConstants.claudeApiKey,
-        'anthropic-version': '2023-06-01',
+        'Authorization': 'Bearer ${AppConstants.openaiApiKey}',
       },
       body: jsonEncode({
-        'model': AppConstants.claudeModel,
+        'model': AppConstants.openaiModel,
         'max_tokens': 1024,
         'messages': [
           {'role': 'user', 'content': prompt},
@@ -62,11 +62,11 @@ Respond with ONLY valid JSON in this exact format:
     );
 
     if (response.statusCode != 200) {
-      throw Exception('Claude API error: ${response.statusCode} ${response.body}');
+      throw Exception('OpenAI API error: ${response.statusCode} ${response.body}');
     }
 
     final body = jsonDecode(response.body);
-    final text = body['content'][0]['text'] as String;
+    final text = body['choices'][0]['message']['content'] as String;
 
     // Extract JSON from response (handles markdown code blocks)
     final jsonStr = _extractJson(text);

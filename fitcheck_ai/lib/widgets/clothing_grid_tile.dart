@@ -107,8 +107,22 @@ class ClothingGridTile extends StatelessWidget {
         ),
       ),
       errorWidget: (_, __, ___) => Container(
-        color: Colors.grey.shade100,
-        child: const Icon(Icons.broken_image, color: Colors.grey),
+        width: double.infinity,
+        color: _colorFromName(item.color),
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(item.category.icon, size: 28,
+                  color: Colors.white.withValues(alpha: 0.9)),
+              const SizedBox(height: 4),
+              Text(item.color ?? '',
+                  style: TextStyle(fontSize: 10,
+                      color: Colors.white.withValues(alpha: 0.8),
+                      fontWeight: FontWeight.w600)),
+            ],
+          ),
+        ),
       ),
     );
   }

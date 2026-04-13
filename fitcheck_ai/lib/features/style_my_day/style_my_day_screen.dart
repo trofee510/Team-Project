@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../core/constants.dart';
 import '../../core/theme.dart';
+import '../../main.dart';
 import '../../models/category.dart';
 import '../../models/wardrobe_item.dart';
 import '../wardrobe/wardrobe_controller.dart';
@@ -14,31 +18,13 @@ class StyleMyDayScreen extends ConsumerStatefulWidget {
 }
 
 class _StyleMyDayScreenState extends ConsumerState<StyleMyDayScreen> {
-  late PageController _topsCtrl;
-  late PageController _bottomsCtrl;
-  late PageController _shoesCtrl;
+  int _topIdx = 0;
+  int _bottomIdx = 0;
+  int _shoeIdx = 0;
   bool _saved = false;
 
-  @override
-  void initState() {
-    super.initState();
-    _topsCtrl = PageController(viewportFraction: 0.8);
-    _bottomsCtrl = PageController(viewportFraction: 0.8);
-    _shoesCtrl = PageController(viewportFraction: 0.8);
-  }
-
-  @override
-  void dispose() {
-    _topsCtrl.dispose();
-    _bottomsCtrl.dispose();
-    _shoesCtrl.dispose();
-    super.dispose();
-  }
-
-  List<WardrobeItem> _filterByCategory(
-      List<WardrobeItem> items, ClothingCategory cat) {
-    return items.where((i) => i.category == cat).toList();
-  }
+  List<WardrobeItem> _filter(List<WardrobeItem> items, ClothingCategory cat) =>
+      items.where((i) => i.category == cat).toList();
 
   void _saveLook() {
     setState(() => _saved = true);
@@ -61,6 +47,7 @@ class _StyleMyDayScreenState extends ConsumerState<StyleMyDayScreen> {
     final wardrobeAsync = ref.watch(wardrobeControllerProvider);
 
     return Scaffold(
+      backgroundColor: const Color(0xFF0b0d10),
       appBar: AppBar(
         title: const Text('Style My Day'),
         leading: IconButton(
@@ -70,11 +57,12 @@ class _StyleMyDayScreenState extends ConsumerState<StyleMyDayScreen> {
       ),
       body: wardrobeAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Error: $e')),
+        error: (e, _) => Center(child: Text('Error: $e',
+            style: const TextStyle(color: Colors.white70))),
         data: (items) {
-          final tops = _filterByCategory(items, ClothingCategory.tops);
-          final bottoms = _filterByCategory(items, ClothingCategory.bottoms);
-          final shoes = _filterByCategory(items, ClothingCategory.shoes);
+          final tops = _filter(items, ClothingCategory.tops);
+          final bottoms = _filter(items, ClothingCategory.bottoms);
+          final shoes = _filter(items, ClothingCategory.shoes);
 
           if (tops.isEmpty && bottoms.isEmpty && shoes.isEmpty) {
             return Center(
@@ -83,22 +71,16 @@ class _StyleMyDayScreenState extends ConsumerState<StyleMyDayScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.checkroom,
-                        size: 64, color: AppTheme.textSecondary),
+                    Icon(Icons.checkroom, size: 64, color: Colors.white38),
                     const SizedBox(height: 16),
-                    Text(
-                      'Add some clothes first!',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                        color: AppTheme.textSecondary,
-                      ),
-                    ),
+                    const Text('Add some clothes first!',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600,
+                            color: Colors.white70)),
                     const SizedBox(height: 8),
-                    Text(
+                    const Text(
                       'Head to your Wardrobe tab and add\ntops, bottoms, and shoes to mix & match.',
                       textAlign: TextAlign.center,
-                      style: TextStyle(color: AppTheme.textSecondary),
+                      style: TextStyle(color: Colors.white38),
                     ),
                   ],
                 ),
@@ -108,69 +90,112 @@ class _StyleMyDayScreenState extends ConsumerState<StyleMyDayScreen> {
 
           return Column(
             children: [
+              const SizedBox(height: 4),
+              Text('Swipe each zone to mix & match',
+                  style: TextStyle(fontSize: 13, color: Colors.white38)),
               const SizedBox(height: 8),
-              Text(
-                'Swipe to mix & match',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: AppTheme.textSecondary,
-                  fontWeight: FontWeight.w500,
+
+              // ── Mannequin body with overlaid clothing ──
+              Expanded(
+                child: Center(
+                  child: SizedBox(
+                    width: 280,
+                    child: Stack(
+                      alignment: Alignment.topCenter,
+                      children: [
+                        // Body silhouette behind everything
+                        Positioned.fill(
+                          child: CustomPaint(painter: _BodySilhouettePainter()),
+                        ),
+
+                        // TOP zone — upper 38% of body
+                        Positioned(
+                          top: 40,
+                          left: 30,
+                          right: 30,
+                          height: 200,
+                          child: _SwipeZone(
+                            items: tops,
+                            index: _topIdx,
+                            label: 'TOP',
+                            emptyLabel: 'No tops',
+                            alignment: Alignment.bottomCenter,
+                            onChanged: (i) => setState(() => _topIdx = i),
+                          ),
+                        ),
+
+                        // BOTTOM zone — middle 35% of body
+                        Positioned(
+                          top: 240,
+                          left: 35,
+                          right: 35,
+                          height: 220,
+                          child: _SwipeZone(
+                            items: bottoms,
+                            index: _bottomIdx,
+                            label: 'BOTTOM',
+                            emptyLabel: 'No bottoms',
+                            alignment: Alignment.topCenter,
+                            onChanged: (i) => setState(() => _bottomIdx = i),
+                          ),
+                        ),
+
+                        // SHOES zone — bottom 20%
+                        Positioned(
+                          bottom: 10,
+                          left: 55,
+                          right: 55,
+                          height: 100,
+                          child: _SwipeZone(
+                            items: shoes,
+                            index: _shoeIdx,
+                            label: 'SHOES',
+                            emptyLabel: 'No shoes',
+                            alignment: Alignment.center,
+                            onChanged: (i) => setState(() => _shoeIdx = i),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
+
+              // ── Item labels ──
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    _ItemLabel(items: tops, index: _topIdx, slot: 'Top'),
+                    _ItemLabel(items: bottoms, index: _bottomIdx, slot: 'Bottom'),
+                    _ItemLabel(items: shoes, index: _shoeIdx, slot: 'Shoes'),
+                  ],
+                ),
+              ),
+
               const SizedBox(height: 12),
-
-              // ── Tops row ──
-              _SlotSection(
-                label: 'TOP',
-                icon: Icons.checkroom,
-                items: tops,
-                controller: _topsCtrl,
-              ),
-
-              const SizedBox(height: 8),
-
-              // ── Bottoms row ──
-              _SlotSection(
-                label: 'BOTTOM',
-                icon: Icons.straighten,
-                items: bottoms,
-                controller: _bottomsCtrl,
-              ),
-
-              const SizedBox(height: 8),
-
-              // ── Shoes row ──
-              _SlotSection(
-                label: 'SHOES',
-                icon: Icons.ice_skating,
-                items: shoes,
-                controller: _shoesCtrl,
-              ),
-
-              const Spacer(),
 
               // ── Save button ──
               Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
                 child: SizedBox(
                   width: double.infinity,
-                  height: 56,
+                  height: 54,
                   child: ElevatedButton.icon(
                     onPressed: _saved ? null : _saveLook,
                     icon: Icon(_saved ? Icons.check : Icons.bookmark_rounded),
                     label: Text(_saved ? 'Saved!' : 'Save This Look'),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor:
-                          _saved ? const Color(0xFF00C853) : AppTheme.primary,
+                      backgroundColor: _saved
+                          ? const Color(0xFF00C853) : AppTheme.primary,
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
+                        borderRadius: BorderRadius.circular(16)),
                     ),
                   ),
                 ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 16),
             ],
           );
         },
@@ -179,200 +204,249 @@ class _StyleMyDayScreenState extends ConsumerState<StyleMyDayScreen> {
   }
 }
 
-// ── Slot Section (label + swipeable cards) ──
+// ── Swipeable zone overlaid on the mannequin ──
 
-class _SlotSection extends StatelessWidget {
-  final String label;
-  final IconData icon;
+class _SwipeZone extends StatelessWidget {
   final List<WardrobeItem> items;
-  final PageController controller;
+  final int index;
+  final String label;
+  final String emptyLabel;
+  final Alignment alignment;
+  final ValueChanged<int> onChanged;
 
-  const _SlotSection({
-    required this.label,
-    required this.icon,
+  const _SwipeZone({
     required this.items,
-    required this.controller,
+    required this.index,
+    required this.label,
+    required this.emptyLabel,
+    required this.alignment,
+    required this.onChanged,
   });
 
   @override
   Widget build(BuildContext context) {
     if (items.isEmpty) {
       return Container(
-        height: 130,
-        margin: const EdgeInsets.symmetric(horizontal: 20),
         decoration: BoxDecoration(
-          color: Colors.grey.shade100,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.grey.shade300, style: BorderStyle.solid),
+          border: Border.all(color: Colors.white12, width: 1),
+          borderRadius: BorderRadius.circular(12),
         ),
         child: Center(
-          child: Text(
-            'No ${label.toLowerCase()}s yet',
-            style: TextStyle(color: AppTheme.textSecondary, fontSize: 14),
-          ),
+          child: Text(emptyLabel,
+              style: const TextStyle(color: Colors.white24, fontSize: 12)),
         ),
       );
     }
 
+    return GestureDetector(
+      onHorizontalDragEnd: (details) {
+        if (details.primaryVelocity == null) return;
+        if (details.primaryVelocity! < -100) {
+          // swipe left → next
+          onChanged((index + 1) % items.length);
+        } else if (details.primaryVelocity! > 100) {
+          // swipe right → prev
+          onChanged((index - 1 + items.length) % items.length);
+        }
+      },
+      child: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 250),
+        child: ClipRRect(
+          key: ValueKey('${label}_$index'),
+          borderRadius: BorderRadius.circular(4),
+          child: _ClothingImage(
+            item: items[index],
+            alignment: alignment,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Loads the clothing image from Supabase or shows fallback ──
+
+class _ClothingImage extends StatelessWidget {
+  final WardrobeItem item;
+  final Alignment alignment;
+
+  const _ClothingImage({required this.item, required this.alignment});
+
+  String? _imageUrl() {
+    if (kDemoMode || item.imagePath == 'demo') return null;
+    final path = item.thumbnailPath ?? item.imagePath;
+    return Supabase.instance.client.storage
+        .from(AppConstants.wardrobeBucket)
+        .getPublicUrl(path);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final url = _imageUrl();
+    if (url == null) return _fallback();
+
+    return CachedNetworkImage(
+      imageUrl: url,
+      fit: BoxFit.cover,
+      width: double.infinity,
+      height: double.infinity,
+      alignment: alignment,
+      placeholder: (_, __) => Container(
+        color: Colors.white10,
+        child: const Center(
+          child: SizedBox(width: 16, height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white30)),
+        ),
+      ),
+      errorWidget: (_, __, ___) => _fallback(),
+    );
+  }
+
+  Widget _fallback() {
+    return Container(
+      width: double.infinity,
+      height: double.infinity,
+      color: _colorFromName(item.color),
+      child: Center(
+        child: Icon(item.category.icon, size: 32,
+            color: Colors.white.withValues(alpha: 0.4)),
+      ),
+    );
+  }
+
+  Color _colorFromName(String? c) {
+    return switch (c?.toLowerCase()) {
+      'white' => const Color(0xFFE0E0E0),
+      'black' => const Color(0xFF2D3436),
+      'dark blue' || 'navy' => const Color(0xFF1A237E),
+      'light blue' => const Color(0xFF90CAF9),
+      'blue' => const Color(0xFF42A5F5),
+      'khaki' || 'beige' || 'tan' => const Color(0xFFC8B560),
+      'brown' => const Color(0xFF795548),
+      'red' => const Color(0xFFE53935),
+      'green' => const Color(0xFF43A047),
+      'grey' || 'gray' || 'silver' => const Color(0xFF9E9E9E),
+      'pink' => const Color(0xFFEC407A),
+      _ => AppTheme.primary,
+    };
+  }
+}
+
+// ── Item label pill below the mannequin ──
+
+class _ItemLabel extends StatelessWidget {
+  final List<WardrobeItem> items;
+  final int index;
+  final String slot;
+
+  const _ItemLabel({required this.items, required this.index, required this.slot});
+
+  @override
+  Widget build(BuildContext context) {
+    final name = items.isEmpty ? '—' : (items[index].name ?? items[index].category.label);
+    final count = items.length;
+
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Row(
-            children: [
-              Icon(icon, size: 16, color: AppTheme.textSecondary),
-              const SizedBox(width: 6),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: AppTheme.textSecondary,
-                  letterSpacing: 1.2,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                '${items.length} items',
-                style: TextStyle(
-                    fontSize: 11, color: AppTheme.textSecondary.withValues(alpha: 0.6)),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 6),
-        SizedBox(
-          height: 130,
-          child: PageView.builder(
-            controller: controller,
-            itemCount: items.length,
-            itemBuilder: (ctx, i) => _ItemCard(item: items[i]),
-          ),
-        ),
+        Text(slot.toUpperCase(),
+            style: const TextStyle(fontSize: 10, color: Colors.white30,
+                fontWeight: FontWeight.w700, letterSpacing: 1)),
+        const SizedBox(height: 2),
+        Text(name,
+            style: const TextStyle(fontSize: 13, color: Colors.white,
+                fontWeight: FontWeight.w600)),
+        if (count > 1)
+          Text('${index + 1}/$count',
+              style: const TextStyle(fontSize: 10, color: Colors.white38)),
       ],
     );
   }
 }
 
-// ── Individual swipeable card ──
+// ── Female body silhouette painter ──
 
-class _ItemCard extends StatelessWidget {
-  final WardrobeItem item;
-  const _ItemCard({required this.item});
+class _BodySilhouettePainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.06)
+      ..style = PaintingStyle.fill;
 
-  Color _parseColor(String? colorName) {
-    if (colorName == null) return AppTheme.primary;
-    final lc = colorName.toLowerCase();
-    const map = {
-      'white': Color(0xFFF5F5F5),
-      'black': Color(0xFF2D3436),
-      'dark blue': Color(0xFF1A237E),
-      'light blue': Color(0xFF90CAF9),
-      'blue': Color(0xFF42A5F5),
-      'khaki': Color(0xFFC8B560),
-      'tan': Color(0xFFD2B48C),
-      'brown': Color(0xFF795548),
-      'red': Color(0xFFE53935),
-      'green': Color(0xFF43A047),
-      'grey': Color(0xFF9E9E9E),
-      'gray': Color(0xFF9E9E9E),
-      'silver': Color(0xFFBDBDBD),
-      'navy': Color(0xFF1A237E),
-      'beige': Color(0xFFF5F5DC),
-      'pink': Color(0xFFEC407A),
-    };
-    return map[lc] ?? AppTheme.primary;
+    final outline = Paint()
+      ..color = Colors.white.withValues(alpha: 0.1)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5;
+
+    final w = size.width;
+    final h = size.height;
+    final cx = w / 2;
+
+    final path = Path();
+
+    // Head
+    path.addOval(Rect.fromCenter(
+        center: Offset(cx, h * 0.05), width: w * 0.18, height: w * 0.22));
+
+    // Neck
+    path.moveTo(cx - w * 0.05, h * 0.08);
+    path.lineTo(cx - w * 0.05, h * 0.11);
+    path.lineTo(cx + w * 0.05, h * 0.11);
+    path.lineTo(cx + w * 0.05, h * 0.08);
+
+    // Torso — shoulders to waist (feminine shape)
+    final torso = Path();
+    torso.moveTo(cx - w * 0.05, h * 0.11);
+    // Left shoulder
+    torso.quadraticBezierTo(cx - w * 0.32, h * 0.12, cx - w * 0.35, h * 0.16);
+    // Left arm
+    torso.lineTo(cx - w * 0.38, h * 0.35);
+    torso.lineTo(cx - w * 0.30, h * 0.36);
+    // Left waist
+    torso.lineTo(cx - w * 0.25, h * 0.22);
+    torso.quadraticBezierTo(cx - w * 0.18, h * 0.40, cx - w * 0.22, h * 0.42);
+    // Left hip
+    torso.quadraticBezierTo(cx - w * 0.30, h * 0.46, cx - w * 0.30, h * 0.50);
+    // Left leg
+    torso.lineTo(cx - w * 0.25, h * 0.78);
+    torso.quadraticBezierTo(cx - w * 0.24, h * 0.82, cx - w * 0.22, h * 0.85);
+    // Left foot
+    torso.lineTo(cx - w * 0.28, h * 0.87);
+    torso.lineTo(cx - w * 0.28, h * 0.90);
+    torso.lineTo(cx - w * 0.12, h * 0.90);
+    torso.lineTo(cx - w * 0.12, h * 0.87);
+    torso.lineTo(cx - w * 0.14, h * 0.85);
+
+    // Inner legs
+    torso.lineTo(cx - w * 0.06, h * 0.50);
+    torso.lineTo(cx + w * 0.06, h * 0.50);
+
+    // Right leg
+    torso.lineTo(cx + w * 0.14, h * 0.85);
+    torso.lineTo(cx + w * 0.12, h * 0.87);
+    torso.lineTo(cx + w * 0.12, h * 0.90);
+    torso.lineTo(cx + w * 0.28, h * 0.90);
+    torso.lineTo(cx + w * 0.28, h * 0.87);
+    torso.lineTo(cx + w * 0.22, h * 0.85);
+    torso.quadraticBezierTo(cx + w * 0.24, h * 0.82, cx + w * 0.25, h * 0.78);
+    // Right hip
+    torso.lineTo(cx + w * 0.30, h * 0.50);
+    torso.quadraticBezierTo(cx + w * 0.30, h * 0.46, cx + w * 0.22, h * 0.42);
+    // Right waist
+    torso.quadraticBezierTo(cx + w * 0.18, h * 0.40, cx + w * 0.25, h * 0.22);
+    // Right arm
+    torso.lineTo(cx + w * 0.30, h * 0.36);
+    torso.lineTo(cx + w * 0.38, h * 0.35);
+    torso.lineTo(cx + w * 0.35, h * 0.16);
+    // Right shoulder
+    torso.quadraticBezierTo(cx + w * 0.32, h * 0.12, cx + w * 0.05, h * 0.11);
+    torso.close();
+
+    path.addPath(torso, Offset.zero);
+
+    canvas.drawPath(path, paint);
+    canvas.drawPath(path, outline);
   }
 
   @override
-  Widget build(BuildContext context) {
-    final bg = _parseColor(item.color);
-    final isLight = bg.computeLuminance() > 0.5;
-
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 6),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: bg.withValues(alpha: 0.3),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Stack(
-        children: [
-          // Center icon
-          Center(
-            child: Icon(
-              item.category.icon,
-              size: 40,
-              color: isLight
-                  ? Colors.black.withValues(alpha: 0.15)
-                  : Colors.white.withValues(alpha: 0.2),
-            ),
-          ),
-          // Bottom label
-          Positioned(
-            left: 16,
-            right: 16,
-            bottom: 14,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  item.name ?? 'Unnamed',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    color: isLight ? Colors.black87 : Colors.white,
-                  ),
-                ),
-                if (item.subcategory != null)
-                  Text(
-                    item.subcategory!,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: isLight
-                          ? Colors.black54
-                          : Colors.white.withValues(alpha: 0.7),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          // Color dot
-          Positioned(
-            top: 12,
-            right: 12,
-            child: Container(
-              width: 24,
-              height: 24,
-              decoration: BoxDecoration(
-                color: isLight ? Colors.black12 : Colors.white24,
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: isLight ? Colors.black26 : Colors.white38,
-                  width: 1.5,
-                ),
-              ),
-              child: Center(
-                child: Text(
-                  item.color?.substring(0, 1).toUpperCase() ?? '?',
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                    color: isLight ? Colors.black54 : Colors.white70,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
