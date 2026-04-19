@@ -1,89 +1,65 @@
-import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:http/http.dart' as http;
 
-import '../core/constants.dart';
+import 'ai_proxy_service.dart';
 
+/// DEPRECATED: direct Gemini calls are gone. This file exists so existing
+/// callers (`geminiServiceProvider`, `FullFitResult`) keep compiling while
+/// the migration to [AiProxyService] lands.
+///
+/// All scoring now goes through the Supabase Edge Function `ai-proxy`,
+/// which enforces auth + rate limits + model routing server-side.
 final geminiServiceProvider = Provider<GeminiService>((ref) {
-  return GeminiService();
+  return GeminiService(ref.watch(aiProxyServiceProvider));
 });
 
 class GeminiService {
-  Future<FitCheckResult> scoreFitCheck(Uint8List outfitImage) async {
-    final base64Image = base64Encode(outfitImage);
+  final AiProxyService _proxy;
+  GeminiService(this._proxy);
 
-    final url = Uri.parse(
-      'https://generativelanguage.googleapis.com/v1beta/models/${AppConstants.geminiModel}:generateContent?key=${AppConstants.geminiApiKey}',
+  Future<FullFitResult> scoreFitCheck(
+    Uint8List outfitImage, {
+    String? occasion,
+    String? aesthetic,
+    String? bodyType,
+    String? seed, // ignored — server handles determinism
+  }) {
+    return _proxy.scoreFitCheck(
+      outfitImage,
+      occasion: occasion,
+      aesthetic: aesthetic,
+      bodyType: bodyType,
     );
-
-    final response = await http.post(
-      url,
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'contents': [
-          {
-            'parts': [
-              {
-                'text': '''You are a fashion expert. Rate this outfit on a scale of 1-100 and provide brief feedback.
-
-Consider:
-- Color harmony and coordination
-- Style cohesion (do the pieces match in formality/vibe?)
-- Overall visual appeal
-- Versatility
-
-Respond with ONLY valid JSON:
-{"score": <number 1-100>, "feedback": "<2-3 sentences of constructive feedback>"}''',
-              },
-              {
-                'inline_data': {
-                  'mime_type': 'image/png',
-                  'data': base64Image,
-                },
-              },
-            ],
-          },
-        ],
-        'generationConfig': {
-          'temperature': 0.7,
-          'maxOutputTokens': 256,
-        },
-      }),
-    );
-
-    if (response.statusCode != 200) {
-      throw Exception('Gemini API error: ${response.statusCode} ${response.body}');
-    }
-
-    final body = jsonDecode(response.body);
-    final text = body['candidates'][0]['content']['parts'][0]['text'] as String;
-
-    final jsonStr = _extractJson(text);
-    final result = jsonDecode(jsonStr) as Map<String, dynamic>;
-
-    return FitCheckResult(
-      score: (result['score'] as num).toInt(),
-      feedback: result['feedback'] as String,
-    );
-  }
-
-  String _extractJson(String text) {
-    final codeBlockMatch = RegExp(r'```(?:json)?\s*([\s\S]*?)```').firstMatch(text);
-    if (codeBlockMatch != null) return codeBlockMatch.group(1)!.trim();
-
-    final start = text.indexOf('{');
-    final end = text.lastIndexOf('}');
-    if (start != -1 && end != -1) return text.substring(start, end + 1);
-
-    return text;
   }
 }
 
-class FitCheckResult {
+class FullFitResult {
   final int score;
+  final int colorHarmony;
+  final int styleCohesion;
+  final int occasionFit;
+  final int versatility;
   final String feedback;
+  final List<String> tips;
 
-  const FitCheckResult({required this.score, required this.feedback});
+  const FullFitResult({
+    required this.score,
+    required this.colorHarmony,
+    required this.styleCohesion,
+    required this.occasionFit,
+    required this.versatility,
+    required this.feedback,
+    required this.tips,
+  });
+
+  Map<String, dynamic> toDbFields() => {
+        'score': score,
+        'feedback': feedback,
+        'color_harmony_score': colorHarmony,
+        'style_cohesion_score': styleCohesion,
+        'occasion_score': occasionFit,
+        'fit_score': versatility,
+        'improvement_tips': tips,
+      };
 }

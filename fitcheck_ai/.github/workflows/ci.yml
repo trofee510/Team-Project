@@ -1,0 +1,48 @@
+name: ci
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  flutter:
+    name: Flutter lint + test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter --version
+      - run: flutter pub get
+      - name: Format check
+        run: dart format --output=none --set-exit-if-changed .
+      - name: Analyze
+        run: flutter analyze --fatal-infos
+      - name: Test
+        run: flutter test --machine --reporter=github
+
+  deno:
+    name: Edge Functions (Deno)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v1
+        with:
+          deno-version: v1.x
+      - name: Deno fmt
+        run: deno fmt --check supabase/functions
+      - name: Deno lint
+        run: deno lint supabase/functions
+      - name: Deno check (typecheck)
+        run: |
+          for f in supabase/functions/*/index.ts; do
+            deno check "$f"
+          done

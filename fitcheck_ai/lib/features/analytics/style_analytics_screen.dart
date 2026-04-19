@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/theme.dart';
 import '../../models/category.dart';
@@ -94,6 +95,45 @@ class _StyleAnalyticsScreenState extends ConsumerState<StyleAnalyticsScreen> {
                   color: AppTheme.accent,
                 )),
               ],
+            ),
+
+            const SizedBox(height: 16),
+
+            // ── Closet value CTA ──
+            InkWell(
+              onTap: () => context.push('/closet-value'),
+              borderRadius: BorderRadius.circular(14),
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.05),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: Colors.white12),
+                ),
+                child: Row(
+                  children: [
+                    const Text('💰', style: TextStyle(fontSize: 28)),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Closet value',
+                              style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 15)),
+                          SizedBox(height: 2),
+                          Text('Cost-per-wear & dead items',
+                              style: TextStyle(
+                                  color: Colors.white54, fontSize: 12)),
+                        ],
+                      ),
+                    ),
+                    const Icon(Icons.chevron_right, color: Colors.white54),
+                  ],
+                ),
+              ),
             ),
 
             const SizedBox(height: 24),

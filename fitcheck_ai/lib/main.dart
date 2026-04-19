@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'app.dart';
+import 'services/analytics_service.dart';
 
 /// Set to true to run without Supabase (UI preview mode)
 const bool kDemoMode = false;
@@ -13,7 +14,6 @@ const String kAppName = 'GRWM';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
   await dotenv.load(fileName: '.env');
 
   if (!kDemoMode) {
@@ -23,9 +23,10 @@ Future<void> main() async {
     );
   }
 
-  runApp(
-    const ProviderScope(
-      child: GRWMApp(),
-    ),
-  );
+  // Sentry wraps runApp in a zoneGuard so uncaught async errors report.
+  await initObservabilityAndRun(() async {
+    runApp(
+      const ProviderScope(child: GRWMApp()),
+    );
+  });
 }

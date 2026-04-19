@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/theme.dart';
 import '../../core/extensions.dart';
+import '../../services/supabase_service.dart';
 import 'auth_controller.dart';
 
 class AuthScreen extends ConsumerStatefulWidget {
@@ -17,15 +18,81 @@ class AuthScreen extends ConsumerStatefulWidget {
 class _AuthScreenState extends ConsumerState<AuthScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _otpController = TextEditingController();
   bool _isSignUp = false;
   bool _isLoading = false;
+  bool _usingMagicLink = true;
+  bool _otpSent = false;
   String? _error;
 
   @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
+    _otpController.dispose();
     super.dispose();
+  }
+
+  Future<void> _sendMagicLink() async {
+    final email = _emailController.text.trim();
+    if (email.isEmpty || !email.contains('@')) {
+      setState(() => _error = 'Enter a valid email');
+      return;
+    }
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+    try {
+      await ref.read(supabaseServiceProvider).signInWithEmailOtp(email);
+      if (!mounted) return;
+      setState(() {
+        _otpSent = true;
+        _isLoading = false;
+      });
+      context.showSnackBar('Check your inbox — link + 6-digit code sent');
+    } on AuthException catch (e) {
+      setState(() {
+        _error = e.message;
+        _isLoading = false;
+      });
+    } catch (_) {
+      setState(() {
+        _error = 'Could not send link. Try again.';
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _verifyOtp() async {
+    final email = _emailController.text.trim();
+    final token = _otpController.text.trim();
+    if (token.length < 6) {
+      setState(() => _error = 'Paste the 6-digit code from your email');
+      return;
+    }
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+    try {
+      await ref.read(supabaseServiceProvider).verifyEmailOtp(
+            email: email,
+            token: token,
+          );
+      if (!mounted) return;
+      context.go('/home');
+    } on AuthException catch (e) {
+      setState(() {
+        _error = e.message;
+        _isLoading = false;
+      });
+    } catch (_) {
+      setState(() {
+        _error = 'Invalid code. Try again.';
+        _isLoading = false;
+      });
+    }
   }
 
   Future<void> _signInWithEmail() async {
@@ -110,11 +177,12 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
 
               const SizedBox(height: 48),
 
-              // Email field
+              // Email field (always visible)
               TextField(
                 controller: _emailController,
                 keyboardType: TextInputType.emailAddress,
                 textInputAction: TextInputAction.next,
+                autofillHints: const [AutofillHints.email],
                 decoration: InputDecoration(
                   labelText: 'Email',
                   hintText: 'you@example.com',
@@ -126,21 +194,41 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
               ),
               const SizedBox(height: 14),
 
-              // Password field
-              TextField(
-                controller: _passwordController,
-                obscureText: true,
-                textInputAction: TextInputAction.done,
-                onSubmitted: (_) => _signInWithEmail(),
-                decoration: InputDecoration(
-                  labelText: 'Password',
-                  hintText: _isSignUp ? 'Min 6 characters' : '',
-                  prefixIcon: const Icon(Icons.lock_outlined),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
+              // Magic-link path: show OTP field after sending.
+              if (_usingMagicLink && _otpSent)
+                TextField(
+                  controller: _otpController,
+                  keyboardType: TextInputType.number,
+                  textInputAction: TextInputAction.done,
+                  onSubmitted: (_) => _verifyOtp(),
+                  maxLength: 6,
+                  decoration: InputDecoration(
+                    labelText: '6-digit code',
+                    hintText: 'From your email',
+                    counterText: '',
+                    prefixIcon: const Icon(Icons.pin_outlined),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
                   ),
                 ),
-              ),
+
+              // Password path: traditional email+password.
+              if (!_usingMagicLink)
+                TextField(
+                  controller: _passwordController,
+                  obscureText: true,
+                  textInputAction: TextInputAction.done,
+                  onSubmitted: (_) => _signInWithEmail(),
+                  decoration: InputDecoration(
+                    labelText: 'Password',
+                    hintText: _isSignUp ? 'Min 6 characters' : '',
+                    prefixIcon: const Icon(Icons.lock_outlined),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                ),
 
               // Error message
               if (_error != null)
@@ -155,12 +243,16 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
 
               const SizedBox(height: 24),
 
-              // Sign in / Sign up button
+              // Primary action button — copy depends on mode + state.
               SizedBox(
                 width: double.infinity,
                 height: 56,
                 child: ElevatedButton(
-                  onPressed: _isLoading ? null : _signInWithEmail,
+                  onPressed: _isLoading
+                      ? null
+                      : _usingMagicLink
+                          ? (_otpSent ? _verifyOtp : _sendMagicLink)
+                          : _signInWithEmail,
                   child: _isLoading
                       ? const SizedBox(
                           width: 20,
@@ -170,25 +262,46 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                             color: Colors.white,
                           ),
                         )
-                      : Text(_isSignUp ? 'Create Account' : 'Sign In'),
+                      : Text(
+                          _usingMagicLink
+                              ? (_otpSent ? 'Verify code' : 'Email me a link')
+                              : (_isSignUp ? 'Create Account' : 'Sign In'),
+                        ),
                 ),
               ),
 
-              const SizedBox(height: 12),
+              const SizedBox(height: 8),
 
-              // Toggle sign in / sign up
+              // Secondary: switch between magic-link and password flows.
               TextButton(
                 onPressed: () => setState(() {
-                  _isSignUp = !_isSignUp;
+                  _usingMagicLink = !_usingMagicLink;
+                  _otpSent = false;
+                  _isSignUp = false;
                   _error = null;
                 }),
                 child: Text(
-                  _isSignUp
-                      ? 'Already have an account? Sign in'
-                      : 'Don\'t have an account? Create one',
+                  _usingMagicLink
+                      ? 'Prefer a password? Use email + password'
+                      : 'Skip the password — email me a link',
                   style: TextStyle(color: AppTheme.textSecondary),
                 ),
               ),
+
+              // Only show sign-in / sign-up toggle in password mode.
+              if (!_usingMagicLink)
+                TextButton(
+                  onPressed: () => setState(() {
+                    _isSignUp = !_isSignUp;
+                    _error = null;
+                  }),
+                  child: Text(
+                    _isSignUp
+                        ? 'Already have an account? Sign in'
+                        : 'Don\'t have an account? Create one',
+                    style: TextStyle(color: AppTheme.textSecondary),
+                  ),
+                ),
 
               const SizedBox(height: 24),
 

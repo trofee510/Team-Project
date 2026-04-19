@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../wardrobe/wardrobe_screen.dart';
 import '../hub/mode_selection_screen.dart';
+import '../feed/stranger_feed_screen.dart';
 import '../analytics/style_analytics_screen.dart';
 import '../profile/profile_screen.dart';
 
@@ -14,6 +15,7 @@ class HomeScreen extends ConsumerWidget {
   static const _screens = [
     WardrobeScreen(),
     ModeSelectionScreen(),
+    StrangerFeedScreen(),
     StyleAnalyticsScreen(),
     ProfileScreen(),
   ];
@@ -44,6 +46,10 @@ class HomeScreen extends ConsumerWidget {
             BottomNavigationBarItem(
               icon: Icon(Icons.auto_awesome),
               label: 'Outfits',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.public),
+              label: 'Discover',
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.insights),

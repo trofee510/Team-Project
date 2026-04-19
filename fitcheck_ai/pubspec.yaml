@@ -65,6 +65,27 @@ dependencies:
   # Location
   geolocator: ^13.0.1
 
+  # Hashing (reproducibility cache for fit checks)
+  crypto: ^3.0.5
+
+  # Deep links (battle invites)
+  app_links: ^6.3.2
+
+  # Local push (streak nudge)
+  flutter_local_notifications: ^17.2.3
+  timezone: ^0.9.4
+  flutter_timezone: ^3.0.1
+
+  # Preferences (already a transitive via riverpod, but we use it directly)
+  shared_preferences: ^2.3.3
+
+  # Subscriptions
+  purchases_flutter: ^8.2.2
+
+  # Observability
+  sentry_flutter: ^8.10.1
+  posthog_flutter: ^4.8.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

@@ -1,0 +1,100 @@
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      rollout_percent:
+        description: 'Android staged rollout percent (1, 10, 50, 100)'
+        required: true
+        default: '1'
+
+# Staged rollout is controlled from the Play Console `userFraction` field AND
+# by the `kill_ai_proxy` / `force_upgrade_build` rows in public.feature_flags.
+# Update those in Supabase to kill/hold a bad build even after it's shipped.
+
+jobs:
+  android-play:
+    name: Android → Play (staged)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '17' }
+      - uses: subosito/flutter-action@v2
+        with: { channel: stable, cache: true }
+
+      - run: flutter pub get
+
+      - name: Restore .env
+        run: echo "${{ secrets.ENV_FILE_PROD }}" | base64 --decode > .env
+
+      - name: Decode keystore
+        run: |
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > android/upload-keystore.jks
+          cat > android/key.properties <<EOF
+          storeFile=upload-keystore.jks
+          storePassword=${{ secrets.ANDROID_KEYSTORE_PASS }}
+          keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}
+          keyPassword=${{ secrets.ANDROID_KEY_PASS }}
+          EOF
+
+      - run: flutter build appbundle --release --dart-define=CHANNEL=prod
+
+      - name: Upload AAB to Play (staged)
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: app.grwm
+          releaseFiles: build/app/outputs/bundle/release/app-release.aab
+          track: production
+          status: inProgress
+          userFraction: ${{ github.event.inputs.rollout_percent && format('0.{0}', github.event.inputs.rollout_percent) || '0.01' }}
+
+  ios-appstore:
+    name: iOS → App Store
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with: { channel: stable, cache: true }
+
+      - run: flutter pub get
+
+      - name: Restore .env
+        run: echo "${{ secrets.ENV_FILE_PROD }}" | base64 --decode > .env
+
+      - name: Install cert + profile
+        env:
+          CERT_P12: ${{ secrets.IOS_CERTIFICATE_P12_BASE64 }}
+          CERT_PASS: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
+          PROFILE: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
+        run: |
+          echo "$CERT_P12" | base64 --decode > cert.p12
+          echo "$PROFILE" | base64 --decode > profile.mobileprovision
+          KEYCHAIN=build.keychain
+          security create-keychain -p "" $KEYCHAIN
+          security default-keychain -s $KEYCHAIN
+          security unlock-keychain -p "" $KEYCHAIN
+          security import cert.p12 -k $KEYCHAIN -P "$CERT_PASS" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k "" $KEYCHAIN
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          cp profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
+
+      - run: flutter build ipa --release --export-options-plist=ios/ExportOptions.plist
+
+      - name: Upload to App Store Connect
+        env:
+          API_KEY_ID: ${{ secrets.APPSTORE_API_KEY_ID }}
+          ISSUER_ID: ${{ secrets.APPSTORE_API_ISSUER_ID }}
+          API_KEY_BASE64: ${{ secrets.APPSTORE_API_KEY_BASE64 }}
+        run: |
+          mkdir -p ~/.appstoreconnect/private_keys
+          echo "$API_KEY_BASE64" | base64 --decode > ~/.appstoreconnect/private_keys/AuthKey_$API_KEY_ID.p8
+          xcrun altool --upload-app \
+            --type ios \
+            --file "build/ios/ipa/GRWM.ipa" \
+            --apiKey "$API_KEY_ID" \
+            --apiIssuer "$ISSUER_ID"

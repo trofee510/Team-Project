@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:cached_network_image/cached_network_image.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../core/constants.dart';
 import '../core/theme.dart';
 import '../main.dart';
 import '../models/wardrobe_item.dart';
+import 'supabase_image.dart';
 
 class ClothingGridTile extends StatelessWidget {
   final WardrobeItem item;
@@ -87,17 +85,13 @@ class ClothingGridTile extends StatelessWidget {
       );
     }
 
-    // Real mode: load from Supabase storage
+    // Real mode: load from Supabase storage (signed URL for private bucket).
     final path = item.thumbnailPath ?? item.imagePath;
-    final url = Supabase.instance.client.storage
-        .from(AppConstants.wardrobeBucket)
-        .getPublicUrl(path);
-
-    return CachedNetworkImage(
-      imageUrl: url,
-      fit: BoxFit.cover,
+    return SupabaseImage(
+      path: path,
       width: double.infinity,
-      placeholder: (_, __) => Container(
+      fit: BoxFit.cover,
+      placeholder: Container(
         color: Colors.grey.shade100,
         child: const Center(
           child: SizedBox(
@@ -106,7 +100,7 @@ class ClothingGridTile extends StatelessWidget {
           ),
         ),
       ),
-      errorWidget: (_, __, ___) => Container(
+      errorWidget: Container(
         width: double.infinity,
         color: _colorFromName(item.color),
         child: Center(
